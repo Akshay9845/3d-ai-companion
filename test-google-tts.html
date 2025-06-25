@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google TTS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .success {
+            background: rgba(46, 204, 113, 0.2);
+        }
+
+        .error {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        .info {
+            background: rgba(52, 152, 219, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎤 Google TTS Test</h1>
+
+        <div class="status info">
+            <h3>Test Google Text-to-Speech API</h3>
+            <p>This page tests the Google Cloud Text-to-Speech API integration.</p>
+        </div>
+
+        <div>
+            <label for="textInput">Text to speak:</label>
+            <textarea id="textInput"
+                placeholder="Enter text to convert to speech...">Hello! This is a test of the Google Text-to-Speech API. I am Echo, your AI companion.</textarea>
+        </div>
+
+        <div>
+            <button onclick="testConnection()">🔍 Test Connection</button>
+            <button onclick="speakText()">🎤 Speak Text</button>
+            <button onclick="stopSpeech()">🛑 Stop Speech</button>
+        </div>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        const GOOGLE_API_KEY = 'AIzaSyB-6aBzVSQo9pWXDKBKyxA1towrHqdYN2g';
+        let currentAudioSource = null;
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>${type.toUpperCase()}:</strong> ${message}`;
+        }
+
+        async function testConnection() {
+            updateStatus('Testing Google TTS connection...', 'info');
+
+            try {
+                const requestBody = {
+                    input: {
+                        text: "Hello"
+                    },
+                    voice: {
+                        languageCode: "en-US",
+                        name: "en-US-Neural2-F"
+                    },
+                    audioConfig: {
+                        audioEncoding: "MP3"
+                    }
+                };
+
+                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus(`✅ Connection successful! Audio content length: ${data.audioContent?.length || 0} characters`, 'success');
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    updateStatus(`❌ Connection failed: ${response.status} ${errorData.error?.message || response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`❌ Connection error: ${error.message}`, 'error');
+            }
+        }
+
+        async function speakText() {
+            const text = document.getElementById('textInput').value;
+            if (!text.trim()) {
+                updateStatus('Please enter some text to speak', 'error');
+                return;
+            }
+
+            updateStatus('Generating speech...', 'info');
+
+            try {
+                // Stop any currently playing audio
+                if (currentAudioSource) {
+                    currentAudioSource.stop();
+                    currentAudioSource = null;
+                }
+
+                const requestBody = {
+                    input: {
+                        text: text
+                    },
+                    voice: {
+                        languageCode: "en-US",
+                        name: "en-US-Neural2-F"
+                    },
+                    audioConfig: {
+                        audioEncoding: "MP3",
+                        speakingRate: 1.0,
+                        pitch: 0.0,
+                        volumeGainDb: 0.0
+                    }
+                };
+
+                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // Decode base64 audio data
+                    const audioData = decodeBase64Audio(data.audioContent);
+
+                    // Play the audio
+                    await playAudio(audioData);
+
+                    updateStatus('✅ Speech generated and playing!', 'success');
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    updateStatus(`❌ Speech generation failed: ${response.status} ${errorData.error?.message || response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`❌ Speech error: ${error.message}`, 'error');
+            }
+        }
+
+        function decodeBase64Audio(base64Data) {
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        async function playAudio(audioData) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Resume audio context if it's suspended
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            const audioBuffer = await audioContext.decodeAudioData(audioData);
+
+            currentAudioSource = audioContext.createBufferSource();
+            currentAudioSource.buffer = audioBuffer;
+            currentAudioSource.connect(audioContext.destination);
+            currentAudioSource.start(0);
+
+            // Clean up when audio finishes
+            currentAudioSource.onended = () => {
+                currentAudioSource = null;
+            };
+        }
+
+        function stopSpeech() {
+            if (currentAudioSource) {
+                currentAudioSource.stop();
+                currentAudioSource = null;
+                updateStatus('🛑 Speech stopped', 'info');
+            } else {
+                updateStatus('No speech currently playing', 'info');
+            }
+        }
+
+        // Auto-test connection on page load
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+
+</html>

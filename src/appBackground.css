@@ -1,0 +1,84 @@
+/* Main container styles for ensuring the app fills the viewport */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Ensure the HDR background covers the entire viewport */
+.hdr-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Give content proper layering */
+.app-wrapper {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure content is properly layered above the HDR */
+.content-layer {
+  position: relative;
+  z-index: 2;
+}
+
+/* Make sure pointer events work properly */
+.interactive {
+  pointer-events: auto;
+}
+
+/* Add transparency to UI layers to allow background to show through */
+.ui-panel {
+  background-color: rgba(17, 24, 39, 0.3);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(8, 145, 178, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Avatar is now free-floating without container restrictions */
+/* We keep a subtle glow effect that's applied around the model but doesn't constrain it */
+.model-glow {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -25%);
+  width: 120vw;
+  height: 120vh;
+  background: radial-gradient(
+    circle at center,
+    rgba(6, 182, 212, 0.2) 0%,
+    rgba(6, 182, 212, 0.08) 25%,
+    transparent 60%
+  );
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.7;
+  animation: pulse 8s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
