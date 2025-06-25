@@ -103,6 +103,19 @@ temp/
 # TypeScript
 *.tsbuildinfo
 
+# External repositories (submodules)
+emsdk/
+modules/external/HumanML3D/
+modules/external/opensmile/
+modules/external/pyAudioAnalysis/
+modules/external/three-vrm/
+whisper.cpp/
+
+# Large files that exceed GitHub limits
+*.zip
+anim/*.zip
+anim/*/main/*.zip
+
 # Large model files (if you want to exclude them)
 # Uncomment these if you don't want to track large 3D models
 # public/models/
