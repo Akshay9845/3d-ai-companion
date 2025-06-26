@@ -5,11 +5,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Production builds
+# Production build
 dist/
 build/
-*.tgz
-*.tar.gz
 
 # Environment variables
 .env
@@ -102,6 +100,37 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Audio files (if any are generated)
+*.wav
+*.mp3
+*.ogg
+
+# Video files (if any are generated)
+*.mp4
+*.avi
+*.mov
+
+# Large model files (if any)
+*.bin
+*.model
+*.weights
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Local development
+.local/
 
 # External repositories (submodules)
 emsdk/
