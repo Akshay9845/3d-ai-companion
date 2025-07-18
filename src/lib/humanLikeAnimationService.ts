@@ -305,11 +305,12 @@ export class HumanLikeAnimationService {
   }
 
   /**
-   * Stop current animation and return to idle
+   * Stop current animation naturally - no forced return to idle
    */
-  public async stopAndReturnToIdle(): Promise<void> {
+  public async stopNaturally(): Promise<void> {
     this.clearTransitionQueue();
-    await this.startIdleSequence();
+    // Don't force any specific animation - let current one complete naturally
+    console.log('🎭 NATURAL: Animation will complete naturally without forced idle return');
   }
 }
 

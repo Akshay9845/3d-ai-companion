@@ -3,14 +3,13 @@ import { Button, Input, Tooltip } from 'antd';
 import { MessageCircle, Settings, X } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaWaveSquare } from 'react-icons/fa';
-import { SimpleBrowserTTSService } from '../lib/geminiTTSService';
+import { animationService } from '../lib/animationService';
+import { assistantKnowledgeBase } from '../lib/assistantKnowledgeBase';
+import { constantIdleAnimationController } from '../lib/constantIdleAnimationController';
+import { enhancedGoogleTTSService } from '../lib/enhancedGoogleTTSService';
 import { groqService } from '../lib/groqService';
-import { synchronizedSpeechAnimationController } from '../lib/synchronizedSpeechAnimationController';
-import {
-    detectEmotionAndEnhance
-} from '../lib/textProcessingUtils';
+import { visionIntegratedChatService } from '../lib/visionIntegratedChat';
 import { CharacterSettings } from '../types/characters';
-import ModernChatInputSimple from './Chat/ModernChatInputSimple';
 
 const { TextArea } = Input;
 
@@ -33,7 +32,7 @@ interface AvatarChatOverlayProps {
     currentText: string;
   }) => void;
   onUserInput?: (input: string) => void;
-  onLLMResponse?: (response: string) => void;
+  onLLMResponse?: (response: string) => Promise<string>;
   isProcessing?: boolean;
 }
 
@@ -57,7 +56,7 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const currentRecognitionRef = useRef<SpeechRecognition | null>(null);
-  const [geminiTTS] = useState(() => new SimpleBrowserTTSService());
+  const [geminiTTS] = useState(() => enhancedGoogleTTSService);
   const ttsBufferRef = useRef('');
   const ttsStartedRef = useRef(false);
   const ttsQueueRef = useRef<string[]>([]);
@@ -65,6 +64,13 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
 
   // Voice chat loop logic
   const voiceChatLoopRef = useRef(false);
+
+  // Demo UI state
+  const [showDemoPanel, setShowDemoPanel] = useState(false);
+  const [demoResponse, setDemoResponse] = useState<string>('');
+  const capabilities = assistantKnowledgeBase.getAllCapabilities();
+  const categories = [...new Set(capabilities.map(cap => cap.category))];
+  const animationCategories = animationService.getAllCategories();
 
   // Notify parent component of state changes
   const notifyStateChange = useCallback((updates: Partial<{
@@ -97,9 +103,122 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
   useEffect(() => {
     const initializeServices = async () => {
       try {
-        await geminiTTS.initialize();
+        // Initialize Google TTS with environment API key
+        const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyB-6aBzVSQo9pWXDKBKyxA1towrHqdYN2g';
+        console.log('🔑 Using Google API Key:', googleApiKey.substring(0, 10) + '...');
+        await geminiTTS.initialize(googleApiKey);
+        
+        // Check if Google TTS is available and notify user
+        if (!geminiTTS.isGoogleTTSAvailable()) {
+          console.log('🔄 Google TTS unavailable - using browser TTS with Indian voice selection');
+          setTtsNotification('Using browser TTS with Indian voice (Google TTS requires billing)');
+        } else {
+          console.log('✅ Google TTS available - using high-quality Indian voice');
+        }
+        
         await groqService.initialize();
         groqService.refreshApiKey();
+        
+        // Set up animation service callback to connect with EchoModel
+        animationService.setAnimationChangeCallback((animationPath: string, config?: any) => {
+          console.log('🎭 Animation service callback triggered:', animationPath);
+          if ((window as any).playEchoAnimation) {
+            const animationName = animationPath.split('/').pop()?.replace('.glb', '') || 'happy-idle';
+            
+            // FIXED: Use the proper name mapping from animation service
+            const nameMapping: Record<string, string> = {
+              // Dance animations - CRITICAL FIX
+              'Salsa Dancing': 'salsa-dancing',
+              'Gangnam Style ': 'gangnam-style', // Note: has space in filename
+              'Moonwalk ': 'moonwalk', // Note: has space in filename  
+              'Locking Hip Hop Dance': 'locking-hip-hop-dance',
+              'Jump': 'jump',
+              
+              // Exercise animations
+              'Warming Up': 'warming-up',
+              'Push Up': 'push-up',
+              'Plank': 'plank',
+              'End Plank': 'end-plank',
+              'Air Squat': 'air-squat',
+              'Idle To Push Up': 'idle-to-push-up',
+              'Idle To Situp': 'idle-to-situp',
+              
+              // Fighting animations
+              'Fighting Idle': 'fighting-idle',
+              'Fight Idle': 'fight-idle',
+              'Fight Idle (1)': 'fight-idle-1',
+              'Fight Idle (2)': 'fight-idle-2',
+              'Fight Idle (3)': 'fight-idle-3',
+              'angry gesture': 'angry-gesture',
+              'being cocky': 'being-cocky',
+              'dismissing gesture': 'dismissing-gesture',
+              'Defeat': 'defeat',
+              
+              // Gesture animations
+              'Waving-2': 'waving-2',
+              'Waving-3': 'waving-3',
+              'Waving-4': 'waving-4',
+              'Waving Gesture-3': 'waving-gesture-3',
+              'Standing Greeting': 'standing-greeting',
+              'Quick Formal Bow': 'quick-formal-bow',
+              'Quick Informal Bow': 'quick-informal-bow',
+              'Clapping': 'clapping',
+              'Reacting': 'reacting',
+              'weight shift': 'weight-shift',
+              
+              // Talking animations
+              'Talking': 'talking',
+              'Talking-2': 'talking-2',
+              'Talking-3': 'talking-3',
+              'Talking-4': 'talking-4',
+              'Head Nod Yes': 'head-nod-yes',
+              'shaking head no': 'shaking-head-no',
+              'No': 'no',
+              'look away gesture': 'look-away-gesture',
+              'sarcastic head nod': 'sarcastic-head-nod',
+              'annoyed head shake': 'annoyed-head-shake',
+              
+              // Other animations
+              'Happy': 'happy',
+              'Excited': 'excited',
+              'Happy Walk': 'happy-walk',
+              'acknowledging': 'acknowledging',
+              'happy hand gesture': 'happy-hand-gesture',
+              'Looking': 'looking',
+              'lengthy head nod': 'lengthy-head-nod',
+              'Hard Head Nod': 'hard-head-nod',
+              'relieved sigh': 'relieved-sigh',
+              'thoughtful head shake': 'thoughtful-head-shake',
+              'Yawn': 'yawn',
+              'Sitting Idle': 'sitting-idle',
+              'Male Sitting Pose': 'male-sitting-pose',
+              'Male Sitting Pose-2': 'male-sitting-pose-2',
+              'Neutral Idle': 'neutral-idle',
+              'Sad Idle': 'sad-idle'
+            };
+            
+            const mappedName = nameMapping[animationName] || animationName.toLowerCase().replace(/\s+/g, '-');
+            const crossFade = config?.crossFade || 0.8;
+            
+            console.log('🎭 FIXED: Animation name mapping:', `"${animationName}" → "${mappedName}"`);
+            console.log('🎭 Calling playEchoAnimation:', mappedName, crossFade);
+            (window as any).playEchoAnimation(mappedName, crossFade);
+          } else {
+            console.warn('🎭 playEchoAnimation not available on window');
+          }
+        });
+        console.log('✅ Animation service callback set up');
+        
+        // Initialize constant idle animation controller to prevent T-pose
+        console.log('🛡️ INITIALIZING CONSTANT IDLE SYSTEM - T-POSE PREVENTION');
+        constantIdleAnimationController.initialize();
+        console.log('✅ Constant idle system activated - T-pose prevention ready');
+        
+        // Initialize overlapping animation controller for ultimate T-pose prevention
+        console.log('🛡️ INITIALIZING OVERLAPPING ANIMATION SYSTEM - NO GAPS = NO T-POSE');
+        const { overlappingAnimationController } = await import('../lib/overlappingAnimationController');
+        overlappingAnimationController.forceContinuousCoverage();
+        console.log('✅ Overlapping animation system activated - continuous coverage guaranteed');
         
         // Safety check: Ensure base idle is always active
         setTimeout(() => {
@@ -117,20 +236,24 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
 
   // Safety check: Monitor base idle every 10 seconds
   useEffect(() => {
+    let lastIdleForceTime = 0;
     const baseIdleCheckInterval = setInterval(() => {
-      // Check if base idle is active
+      // Check if base idle is active (reduced frequency to prevent loops)
       if ((window as any).getEchoAnimationState) {
         const state = (window as any).getEchoAnimationState();
         const hasActiveAnimations = state.activeAnimations && state.activeAnimations.length > 0;
+        const now = Date.now();
         
-        if (!hasActiveAnimations) {
+        // Only force idle if no animations and hasn't been forced recently
+        if (!hasActiveAnimations && (now - lastIdleForceTime) > 25000) {
           console.log('🚨 No active animations detected - forcing base idle');
           if ((window as any).forceEchoBaseIdle) {
             (window as any).forceEchoBaseIdle();
+            lastIdleForceTime = now;
           }
         }
       }
-    }, 10000); // Check every 10 seconds
+    }, 30000); // Check every 30 seconds (reduced frequency)
 
     return () => {
       clearInterval(baseIdleCheckInterval);
@@ -216,202 +339,54 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
   // Get AI response with streaming TTS
   const getAIResponse = useCallback(async (message: string, abortSignal: AbortSignal): Promise<string> => {
     try {
-      let fullResponse = '';
-      let isFirstToken = true;
-      let lastSentIndex = 0;
-      let processedChunks = new Set<string>(); // Track processed chunks to prevent duplicates
-      let hasTtsError = false; // Track if we've had TTS errors
-      let synchronizedControllerTriggered = false; // Track if synchronized controller was triggered
-      
-      console.log('🎭🎭🎭 AI RESPONSE STARTING - PREPARING TALKING ANIMATIONS 🎭🎭🎭');
+      console.log('🎭🎭🎭 AI RESPONSE STARTING - Using Enhanced Chat Integration 🎭🎭🎭');
       console.log('🎭 User asked:', message.substring(0, 50) + '...');
       
-      // Start streaming TTS session
-      geminiTTS.startStreamingTTS();
+      // Use enhanced chat integration service for capability-aware responses
+      const { enhancedChatIntegrationService } = await import('../lib/enhancedChatIntegrationService');
+      const chatResponse = await enhancedChatIntegrationService.processUserInput(message);
       
-      // IMMEDIATE TRIGGER: Start talking animation as soon as AI starts responding
-      // This ensures talking animation happens for ALL responses, regardless of content
-      setTimeout(() => {
-        if (!synchronizedControllerTriggered) {
-          console.log('🎭🎭🎭 IMMEDIATE TRIGGER: Starting talking animation for ANY response 🎭🎭🎭');
-          console.log('🎭 This ensures talking animation for ALL user inputs');
-          synchronizedSpeechAnimationController.startSynchronizedSpeech('Starting response...', geminiTTS);
-          synchronizedControllerTriggered = true;
-        }
-      }, 100); // Start talking animation immediately
+      console.log('🎭 Enhanced response:', chatResponse.text.substring(0, 100) + '...');
       
-      const response = await groqService.chatStream(message, async (token: string) => {
-        fullResponse += token;
+      // Trigger animation if present - BUT WAIT for TTS to start
+      if (chatResponse.animation) {
+        console.log('🎭 CAPABILITY: Animation detected, will trigger when TTS starts');
+        // Store animation info to trigger when TTS starts
+        const animationInfo = {
+          name: chatResponse.animation.animation,
+          timeScale: chatResponse.animation.timeScale || 0.5,
+          crossFade: chatResponse.animation.crossFade || 0.8
+        };
         
-        if (isFirstToken) {
-          isFirstToken = false;
-          console.log('🎯 First token received, starting buffering...');
-        }
-        
-        // Look for complete sentences from our last sent position
-        const textToCheck = fullResponse.slice(lastSentIndex);
-        
-        // Find sentence boundaries with more precise regex
-        const sentenceMatches = [...textToCheck.matchAll(/[.!?]\s+/g)];
-        
-        if (sentenceMatches.length > 0) {
-          // Get the position of the last complete sentence
-          const lastMatch = sentenceMatches[sentenceMatches.length - 1];
-          const endPosition = lastMatch.index! + lastMatch[0].length;
-          
-          // Extract the text up to the last complete sentence
-          const textToSend = textToCheck.slice(0, endPosition).trim();
-          
-          // Only send if we have substantial content (at least 5 words) and haven't processed it before
-          const wordCount = textToSend.split(/\s+/).length;
-          const chunkHash = textToSend.toLowerCase().replace(/\s+/g, ' ');
-          
-          if (wordCount >= 5 && !processedChunks.has(chunkHash)) {
-            console.log('🎯 Adding chunk to streaming TTS:', textToSend.substring(0, 50) + '...');
-            
-            // Mark as processed
-            processedChunks.add(chunkHash);
-            
-            // Trigger synchronized controller only once at the beginning
-            if (!synchronizedControllerTriggered) {
-              console.log('🎭🎭🎭 TRIGGERING SYNCHRONIZED CONTROLLER FOR FIRST CHUNK 🎭🎭🎭');
-              console.log('🎭 This should start TALKING ANIMATIONS that change every 5-6 seconds');
-              console.log('🎭 Text that will trigger talking:', textToSend.substring(0, 100) + '...');
-              synchronizedSpeechAnimationController.startSynchronizedSpeech(textToSend, geminiTTS);
-              synchronizedControllerTriggered = true;
-            }
-            
-            // Process and add the content to streaming TTS
-            const processed = detectEmotionAndEnhance(textToSend);
-            if (processed.cleanedText) {
-              console.log('🎤 TTS Text (after processing):', processed.cleanedText);
-              try {
-                await geminiTTS.addToStreamingTTS(processed.cleanedText, processed.emotionType, processed.emotionIntensity);
-              } catch (ttsError) {
-                if (!hasTtsError && ttsError instanceof Error && ttsError.message.includes('billing')) {
-                  hasTtsError = true;
-                  setTtsNotification('Google TTS API requires billing. Using fallback TTS. Click for help.');
-                  
-                  // Auto-dismiss notification after 10 seconds
-                  setTimeout(() => {
-                    setTtsNotification(null);
-                  }, 10000);
-                }
-              }
-            }
-            
-            // Update our tracking position
-            lastSentIndex += endPosition;
-          }
-        }
-        // Fallback: if we have a lot of text without sentence endings, send it anyway
-        else if (textToCheck.length > 200) {
-          const wordCount = textToCheck.split(/\s+/).length;
-          const chunkHash = textToCheck.toLowerCase().replace(/\s+/g, ' ');
-          
-          if (wordCount >= 10 && !processedChunks.has(chunkHash)) {
-            console.log('🎯 Adding long chunk to streaming TTS:', textToCheck.substring(0, 50) + '...');
-            
-            // Mark as processed
-            processedChunks.add(chunkHash);
-            
-            // Trigger synchronized controller only once at the beginning
-            if (!synchronizedControllerTriggered) {
-              console.log('🎭🎭🎭 TRIGGERING SYNCHRONIZED CONTROLLER FOR FIRST CHUNK (fallback) 🎭🎭🎭');
-              console.log('🎭 This should start TALKING ANIMATIONS (fallback mode)');
-              console.log('🎭 Long text that will trigger talking:', textToCheck.substring(0, 100) + '...');
-              synchronizedSpeechAnimationController.startSynchronizedSpeech(textToCheck, geminiTTS);
-              synchronizedControllerTriggered = true;
-            }
-            
-            const processed = detectEmotionAndEnhance(textToCheck.trim());
-            if (processed.cleanedText) {
-              console.log('🎤 TTS Text (fallback chunk):', processed.cleanedText);
-              try {
-                await geminiTTS.addToStreamingTTS(processed.cleanedText, processed.emotionType, processed.emotionIntensity);
-              } catch (ttsError) {
-                if (!hasTtsError && ttsError instanceof Error && ttsError.message.includes('billing')) {
-                  hasTtsError = true;
-                  setTtsNotification('Google TTS API requires billing. Using fallback TTS. Click for help.');
-                  
-                  // Auto-dismiss notification after 10 seconds
-                  setTimeout(() => {
-                    setTtsNotification(null);
-                  }, 10000);
-                }
-              }
-            }
-            
-            lastSentIndex = fullResponse.length;
-          }
-        }
-      }, abortSignal);
-      
-      // Add any remaining content
-      const remainingText = fullResponse.slice(lastSentIndex).trim();
-      if (remainingText) {
-        const chunkHash = remainingText.toLowerCase().replace(/\s+/g, ' ');
-        
-        if (!processedChunks.has(chunkHash)) {
-          console.log('🎯 Adding final chunk to streaming TTS:', remainingText.substring(0, 50) + '...');
-          
-          // Trigger synchronized controller for final chunk if not triggered yet
-          if (!synchronizedControllerTriggered) {
-            console.log('🎭🎭🎭 TRIGGERING SYNCHRONIZED CONTROLLER FOR FINAL CHUNK 🎭🎭🎭');
-            synchronizedSpeechAnimationController.startSynchronizedSpeech(remainingText, geminiTTS);
-            synchronizedControllerTriggered = true;
-          }
-          
-          const processed = detectEmotionAndEnhance(remainingText);
-          if (processed.cleanedText) {
-            console.log('🎤 TTS Text (final chunk):', processed.cleanedText);
-            try {
-              await geminiTTS.addToStreamingTTS(processed.cleanedText, processed.emotionType, processed.emotionIntensity);
-            } catch (ttsError) {
-              if (!hasTtsError && ttsError instanceof Error && ttsError.message.includes('billing')) {
-                hasTtsError = true;
-                setTtsNotification('Google TTS API requires billing. Using fallback TTS. Click for help.');
-                
-                // Auto-dismiss notification after 10 seconds
-                setTimeout(() => {
-                  setTtsNotification(null);
-                }, 10000);
-              }
-            }
-          }
-        }
+        // Don't trigger animation yet - wait for TTS to start
+        console.log('🎭 CAPABILITY: Animation queued:', animationInfo);
       }
       
-      // Finish streaming TTS with any remaining content
-      await geminiTTS.finishStreamingTTS();
+      // REMOVED TTS from getAIResponse to prevent duplicate speech
+      // TTS is handled by handleLLMResponse to avoid duplicates
+      console.log('🔇 TTS removed from getAIResponse - handled by handleLLMResponse only');
       
-      // Final fallback: if synchronized controller was never triggered, trigger it now
-      if (!synchronizedControllerTriggered && fullResponse.trim()) {
-        console.log('🎭🎭🎭 FINAL FALLBACK: TRIGGERING SYNCHRONIZED CONTROLLER 🎭🎭🎭');
-        synchronizedSpeechAnimationController.startSynchronizedSpeech(fullResponse, geminiTTS);
-        
-        // REMOVED: Duplicate TTS processing - the synchronized controller will handle TTS
-        // The streaming TTS is already handled above, no need to duplicate it here
-        console.log('🎤 Synchronized controller will handle TTS for final fallback');
-      }
-      
-      console.log('✅ Full AI response:', response);
-      return response;
+      console.log('✅ Enhanced AI response completed');
+      return chatResponse.text;
       
     } catch (error) {
-      console.error('❌ Error getting AI response:', error);
-      // Stop streaming TTS on error
-      geminiTTS.stopStreamingTTS();
-      return 'Sorry, I encountered an error. Please try again.';
+      console.error('❌ Enhanced chat integration failed:', error);
+      // Fallback to capability-aware response
+      const fallbackResponse = "I'm Echo, your 3D AI assistant! I can dance, exercise, fight, teach, and much more! What would you like me to demonstrate?";
+      
+      // REMOVED TTS from fallback to prevent duplicate speech
+      console.log('🔇 Fallback TTS removed - handled by handleLLMResponse only');
+      
+      return fallbackResponse;
     }
-  }, [groqService, geminiTTS]);
+  }, [geminiTTS, setTtsNotification]);
 
-  // Send message handler
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+  // Handle voice input with TTS enabled
+  const handleVoiceInput = async (transcript: string) => {
+    console.log('🎤 Processing voice input with TTS enabled:', transcript);
     
     // Call onUserInput callback for animation triggering
-    onUserInput?.(inputValue.trim());
+    onUserInput?.(transcript);
     
     // Abort previous streaming and TTS
     if (currentStreaming) {
@@ -421,26 +396,15 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
     stopTTS();
     // Stop any ongoing streaming TTS
     geminiTTS.stopStreamingTTS();
-    // Mark previous assistant message as interrupted
-    setMessages(prev => {
-      const newMessages = [...prev];
-      for (let i = newMessages.length - 1; i >= 0; i--) {
-        if (newMessages[i].sender === 'assistant' && newMessages[i].isTyping) {
-          newMessages[i].interrupted = true;
-          newMessages[i].isTyping = false;
-          break;
-        }
-      }
-      return newMessages;
-    });
+    
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      text: inputValue.trim(),
+      text: transcript,
       sender: 'user',
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
+    
     // Add typing indicator
     const typingMessage: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -450,31 +414,78 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
       isTyping: true
     };
     setMessages(prev => [...prev, typingMessage]);
+    
     // Start new streaming with abort controller
     const abortController = new AbortController();
     setCurrentStreaming(abortController);
     setIsTTSActive(false);
     setIsTypingIndicator(true);
+    
     try {
-      const aiResponse = await getAIResponse(userMessage.text, abortController.signal);
+      // FIXED: Only call handleLLMResponse, it handles everything including messages
+      const response = await handleLLMResponse(transcript, true);
       
-      // Call onLLMResponse callback for animation triggering
-      handleLLMResponse(aiResponse);
-      
+      // FIXED: handleLLMResponse already adds messages, just update typing indicator
       setMessages(prev => {
         const newMessages = [...prev];
         const lastMessage = newMessages[newMessages.length - 1];
         if (lastMessage && lastMessage.isTyping) {
-          lastMessage.text = aiResponse;
+          lastMessage.text = '';
           lastMessage.isTyping = false;
         }
         return newMessages;
       });
       setIsTypingIndicator(false);
+      
+      console.log('🎤 Voice input processed with single response path');
+      
     } catch (error) {
       setIsTypingIndicator(false);
     } finally {
       setCurrentStreaming(null);
+    }
+  };
+
+  // Send message handler - TEXT INPUT ONLY (NO TTS to save tokens)
+  const handleSendMessage = async () => {
+    if (!inputValue.trim()) return;
+    
+    console.log('🎭🎭🎭 AVATAR CHAT OVERLAY: handleSendMessage called 🎭🎭🎭');
+    console.log('🎭 Input value:', inputValue);
+    
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: inputValue.trim(),
+      sender: 'user',
+      timestamp: new Date()
+    };
+    
+    console.log('🎭 Adding user message to chat:', userMessage);
+    setMessages(prev => [...prev, userMessage]);
+    
+    const currentInput = inputValue.trim();
+    setInputValue('');
+    setIsLoading(true);
+    
+    try {
+      console.log('🎭 About to call handleLLMResponse with:', currentInput);
+      const response = await handleLLMResponse(currentInput, false); // false = text input
+      console.log('🎭 handleLLMResponse completed successfully');
+      
+      // FIXED: handleLLMResponse already adds the assistant message, don't add it again
+    } catch (error) {
+      console.error('🎭 Error in handleSendMessage:', error);
+      
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + '-error',
+        text: "Sorry, I'm having trouble responding right now. Please try again!",
+        sender: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -545,9 +556,13 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
           const detectedLanguage = detectLanguage(transcript.trim());
           autoSwitchLanguage(detectedLanguage);
           
-          setInputValue(transcript.trim());
+          // FIXED: Don't set inputValue to prevent duplicate processing
+          // setInputValue(transcript.trim()); // REMOVED - this was causing duplicates
           setInterimTranscript('');
           recognition.stop();
+          
+          // Process voice input with TTS enabled - this handles the message
+          handleVoiceInput(transcript.trim());
         }
       };
       
@@ -634,17 +649,19 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
                 isFinal = true;
               }
             }
-            setInterimTranscript(transcript);
+            
             if (isFinal && transcript.trim()) {
               console.log('[Voice Chat] Got transcript:', transcript.trim());
-              finalTranscript = transcript.trim();
               
               // Auto-detect language and switch if needed
               const detectedLanguage = detectLanguage(transcript.trim());
               autoSwitchLanguage(detectedLanguage);
               
-              setInterimTranscript('');
-              recognitionCompleted = true;
+              // FIXED: Don't call handleVoiceInput here - it causes duplicates
+              // Just resolve with the transcript for voice chat loop to handle
+              
+              // Stop this recognition instance
+              voiceChatRecognition.stop();
               resolve(transcript.trim());
             }
           };
@@ -697,12 +714,15 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
           setIsTypingIndicator(true);
           
           try {
-            const aiResponse = await getAIResponse(userInput, abortController.signal);
+            // FIXED: handleLLMResponse handles everything including adding messages
+            const response = await handleLLMResponse(userInput, true);
+            
+            // FIXED: handleLLMResponse already adds messages, just clear typing indicator
             setMessages(prev => {
               const newMessages = [...prev];
               const lastMessage = newMessages[newMessages.length - 1];
               if (lastMessage && lastMessage.isTyping) {
-                lastMessage.text = aiResponse;
+                lastMessage.text = '';
                 lastMessage.isTyping = false;
               }
               return newMessages;
@@ -854,15 +874,164 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
     onUserInput?.(message);
   };
 
-  const handleLLMResponse = (response: string) => {
-    console.log('🎭🎭🎭 AVATAR CHAT OVERLAY: LLM Response received - triggering aggressive animation system 🎭🎭🎭');
-    console.log('🎭 Response text:', response.substring(0, 100) + (response.length > 100 ? '...' : ''));
-    console.log('🎭 AGGRESSIVE: This will trigger talking animations immediately one after another');
+  const handleLLMResponse = async (userInput: string, isVoiceInput: boolean = false): Promise<string> => {
+    console.log('🎭🎭🎭 AVATAR CHAT OVERLAY: Processing user input with capability awareness 🎭🎭🎭');
+    console.log('🎭 User input:', userInput.substring(0, 100) + (userInput.length > 100 ? '...' : ''));
+    console.log('🎭 Input type:', isVoiceInput ? 'VOICE' : 'TEXT');
     
-    // Call the parent callback to trigger synchronized speech animation
-    onLLMResponse?.(response);
-    
-    console.log('🎭 AGGRESSIVE: LLM response callback completed - synchronized speech should be starting');
+    try {
+      // Check if this is a vision-related query
+      const isVisionQuery = visionIntegratedChatService.detectVisionQuery(userInput);
+      
+      // If it's a vision query, analyze the camera to get fresh data
+      if (isVisionQuery && (window as any).analyzeCamera) {
+        console.log('👁️ Vision query detected, analyzing camera for fresh data...');
+        try {
+          await (window as any).analyzeCamera();
+          console.log('👁️ Fresh camera analysis completed for vision query');
+        } catch (error) {
+          console.error('👁️ Camera analysis error:', error);
+        }
+      }
+      
+      // The vision service will handle context integration
+      const enhancedInput = userInput;
+      
+      // ALWAYS use enhanced chat integration service for capability awareness
+      const { enhancedChatIntegrationService } = await import('../lib/enhancedChatIntegrationService');
+      console.log('🎭 About to call enhancedChatIntegrationService.processUserInput...');
+      const chatResponse = await enhancedChatIntegrationService.processUserInput(enhancedInput);
+      
+      console.log('🎭 AI Response:', chatResponse);
+      console.log('🎭 Response text:', chatResponse.text);
+      console.log('🎭 Has animation:', !!chatResponse.animation);
+      
+      // Enhance response with vision context if available
+      const visionEnhancedResponse = visionIntegratedChatService.generateVisionEnhancedPrompt(
+        userInput, 
+        chatResponse.text
+      );
+      
+      console.log('👁️ Vision enhanced response:', visionEnhancedResponse !== chatResponse.text ? 'ENHANCED' : 'NO_ENHANCEMENT');
+      
+      // Add the assistant's response to the messages (using vision-enhanced version)
+      const assistantMessage: ChatMessage = {
+        id: `${Date.now()}-response`,
+        text: visionEnhancedResponse,
+        sender: 'assistant',
+        timestamp: new Date()
+      };
+      console.log('🎭 Adding response message to chat:', assistantMessage);
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Trigger animation if present - BUT WAIT for TTS to start
+      if (chatResponse.animation) {
+        console.log('🎭 CAPABILITY: Animation detected, will trigger when TTS starts');
+        // Store animation info to trigger when TTS starts
+        const animationInfo = {
+          name: chatResponse.animation.animation,
+          timeScale: chatResponse.animation.timeScale || 0.5,
+          crossFade: chatResponse.animation.crossFade || 0.8
+        };
+      
+        // Don't trigger animation yet - wait for TTS to start
+        console.log('🎭 CAPABILITY: Animation queued:', animationInfo);
+      }
+      
+      // Handle TTS for voice input only OR for all responses (enabling TTS for all)
+      if (chatResponse.shouldSpeak && visionEnhancedResponse) {
+        console.log('🎤 TTS Text (vision enhanced response):', visionEnhancedResponse.replace(/\s+/g, ' '));
+        
+        // TRIGGER ANIMATION IMMEDIATELY WHEN TTS STARTS
+        if (chatResponse.animation) {
+          const animationName = chatResponse.animation.animation;
+          const timeScale = chatResponse.animation.timeScale || 0.5;
+          const crossfade = chatResponse.animation.crossFade || 0.8;
+          
+          console.log('🎭 CAPABILITY: TRIGGERING ANIMATION NOW - TTS starting:', animationName);
+          console.log('🎭 CAPABILITY: Animation details:', { animationName, timeScale, crossfade, category: chatResponse.animation.category });
+          
+          if ((window as any).playEchoAnimation) {
+            (window as any).playEchoAnimation(animationName, crossfade, timeScale);
+            console.log('🎭 CAPABILITY: Animation triggered with TTS start');
+          } else {
+            console.warn('🎭 CAPABILITY: playEchoAnimation not available');
+          }
+        } else {
+          // 🎭 TALKING ANIMATIONS: Trigger talking animations for ALL TTS responses
+          console.log('🎭🎭🎭 TALKING ANIMATION: Starting for general TTS response 🎭🎭🎭');
+          
+                      // Start synchronized speech with talking animations (using vision-enhanced text)
+            try {
+              const { synchronizedSpeechAnimationController } = await import('../lib/synchronizedSpeechAnimationController');
+              console.log('🎭 TALKING: Starting synchronized speech animation controller');
+              synchronizedSpeechAnimationController.startSynchronizedSpeech(visionEnhancedResponse, geminiTTS);
+              console.log('✅ TALKING: Synchronized speech animations started');
+            } catch (error) {
+              console.error('❌ TALKING: Failed to start synchronized speech animations:', error);
+            
+            // Fallback: Manual talking animation trigger
+            if ((window as any).playEchoAnimation) {
+              console.log('🎭 TALKING: Fallback - triggering talking animation manually');
+              const talkingAnimations = ['talking', 'talking-2', 'talking-3', 'talking-4'];
+              const randomTalking = talkingAnimations[Math.floor(Math.random() * talkingAnimations.length)];
+              (window as any).playEchoAnimation(randomTalking, 1.0, 0.7);
+              console.log('🎭 TALKING: Manual talking animation triggered:', randomTalking);
+            }
+          }
+        }
+      
+        // Use Google TTS with Indian male voice
+        try {
+          console.log('🇮🇳 USING GOOGLE TTS: en-IN-Neural2-B (Indian Male Neural)');
+          console.log('🎤 TTS Service Type:', geminiTTS.constructor.name);
+          console.log('🎤 Google TTS Available:', geminiTTS.isGoogleTTSAvailable ? geminiTTS.isGoogleTTSAvailable() : 'Unknown');
+          
+          await geminiTTS.speak(visionEnhancedResponse, {
+            language: 'en-IN', // Indian English for accent
+            voice: 'en-IN-Neural2-B', // Indian English Male Neural voice (Google) or best Indian browser voice
+            rate: 1.0, // Normal speed
+            pitch: 0.0, // Normal pitch  
+            volume: 0.0, // Normal volume
+            emotion: 'neutral'
+          });
+          
+          console.log('✅ Google TTS completed successfully');
+          
+          // IMPORTANT: Return to idle animations after TTS completion (prevent T-pose)
+          console.log('🎭 TTS COMPLETE: Returning to idle animations to prevent T-pose');
+          setTimeout(() => {
+            if ((window as any).forceEchoBaseIdle) {
+              (window as any).forceEchoBaseIdle();
+              console.log('✅ TTS completion: Returned to happy-idle (no T-pose)');
+            } else if ((window as any).playEchoAnimation) {
+              (window as any).playEchoAnimation('happy-idle', 1.5);
+              console.log('✅ TTS completion: Transitioned to happy-idle (no T-pose)');
+            }
+          }, 1000); // 1 second delay for graceful transition
+          
+    } catch (error) {
+          console.error('❌ TTS Error:', error);
+          
+          // Even on error, return to idle to prevent T-pose
+          console.log('🎭 TTS ERROR: Returning to idle animations');
+          setTimeout(() => {
+            if ((window as any).forceEchoBaseIdle) {
+              (window as any).forceEchoBaseIdle();
+              console.log('✅ TTS error: Returned to happy-idle (no T-pose)');
+            }
+          }, 500);
+        }
+      }
+      
+      return visionEnhancedResponse;
+    } catch (error) {
+      console.error('🎭 Error in enhanced chat integration:', error);
+      
+      // Return error message instead of adding duplicate fallback
+      const errorText = "Sorry, I encountered an error. Please try again.";
+      return errorText;
+    }
   };
 
   // Debug function to test base layer approach
@@ -883,7 +1052,7 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
       // Test playing a greeting animation (should be layered on base idle)
       if ((window as any).playEchoAnimation) {
         setTimeout(() => {
-          (window as any).playEchoAnimation('waving-gesture', 0.8);
+          (window as any).playEchoAnimation('waving-gesture', 0.8, 0.5);
           console.log('✅ Greeting animation layered on base idle');
         }, 1000);
       }
@@ -897,6 +1066,30 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
       delete (window as any).testBaseLayerApproach;
     };
   }, [testBaseLayerApproach]);
+
+  // Helper to make assistant responses short and sweet
+  function shortAndSweet(text: string, maxLength: number = 500): string {
+    // FIXED: Show full response, increased limit significantly
+    // Remove excessive newlines and whitespace
+    let clean = text.replace(/\s+/g, ' ').trim();
+    // If too long, truncate and add ellipsis (but with much higher limit)
+    if (clean.length > maxLength) {
+      clean = clean.slice(0, maxLength).trim() + '...';
+    }
+    // Optionally, you could add more summarization logic here
+    return clean;
+  }
+
+  const handleCapabilityClick = (capability: any) => {
+    setDemoResponse(capability.responseTemplate);
+  };
+  const handleAnimationCategoryClick = (category: any) => {
+    const examples = category.examples.join(', ');
+    setDemoResponse(`I'd love to show you some ${category.displayName.toLowerCase()}! Try saying: "${examples}"`);
+  };
+  const handleAssistantDescription = () => {
+    setDemoResponse(assistantKnowledgeBase.getAssistantDescription());
+  };
 
   return (
     <div className={`avatar-chat-overlay ${isOpen ? 'open' : ''}`}>
@@ -914,6 +1107,11 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
         <div className="chat-panel">
           <div className="chat-header">
             <h3>Chat with Echo</h3>
+            <div className="tts-mode-indicator">
+              <span className="mode-badge">
+                🔇 Text: No TTS | 🎤 Voice: TTS Enabled
+              </span>
+            </div>
             <div className="chat-controls">
               <button 
                 onClick={() => setShowSettings(!showSettings)}
@@ -935,11 +1133,7 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
           {showSettings && <SettingsDrawer />}
           
           <div className="chat-content">
-            <ModernChatInputSimple 
-              onUserInput={handleUserInput}
-              onLLMResponse={handleLLMResponse}
-              isProcessing={isProcessing}
-            />
+            {/* REMOVED ModernChatInputSimple to prevent duplicate inputs */}
             
             {/* Animation Test Panel */}
             <div className="animation-test-panel">
@@ -1019,58 +1213,51 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
         </div>
       )}
 
-      {/* Floating Messages Container - positioned below avatar knees */}
+      {/* Floating Messages Container - bottom right above input */}
       <div 
-        ref={messagesContainerRef}
         className="floating-messages-container"
+        style={{
+          position: 'absolute',
+          right: 24,
+          bottom: 120,
+          width: 400,
+          maxWidth: '32vw',
+          maxHeight: 250,
+          height: 'auto',
+          overflowY: 'auto' as const,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          padding: 20,
+          pointerEvents: 'auto',
+          alignItems: 'flex-end',
+          zIndex: 1001
+        }}
       >
-        {messages.slice(-5).map((message, index) => (
+        {messages.slice(-5).map((message, index) => {
+          console.log('🎭 Rendering message:', message.sender, message.text.substring(0, 50));
+          return (
           <div
             key={message.id}
             className={`floating-message ${message.sender} ${message.isTyping ? 'typing' : ''} ${message.interrupted ? 'interrupted' : ''}`}
             style={{
-              animationDelay: `${index * 0.1}s`
+                alignSelf: message.sender === 'user' ? 'flex-end' : 'flex-start',
+                width: '100%',
+                display: 'flex',
+                justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start'
             }}
           >
             <div className="message-bubble">
-              <div className="message-text">
-                {message.text}
-                {message.isTyping && (
-                  <span className="typing-cursor">|</span>
-                )}
-                {message.interrupted && (
-                  <span className="interrupted-label"> (interrupted)</span>
-                )}
+                <span className="message-text">{shortAndSweet(message.text)}</span>
               </div>
             </div>
-          </div>
-        ))}
-        {/* Typing indicator */}
-        {isTypingIndicator && (
-          <div className="floating-message assistant typing-indicator-row">
-            <div className="message-bubble">
-              <div className="message-text">
-                <span className="typing-indicator">...</span>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Interim transcript display */}
-        {interimTranscript && (
-          <div className="floating-message user interim">
-            <div className="message-bubble">
-              <div className="message-text">
-                {interimTranscript}
-                <span className="typing-indicator">...</span>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area - Fixed at bottom */}
-      <div className="chat-input-container">
+      {/* Input box at the bottom right */}
+      <div className="chat-input-container" style={{ alignSelf: 'flex-end', position: 'absolute', right: 24, bottom: 24, zIndex: 1002 }}>
         <div className="input-wrapper">
           <TextArea
             value={inputValue}
@@ -1356,278 +1543,150 @@ export const AvatarChatOverlay: React.FC<AvatarChatOverlayProps> = ({ className 
 
         .floating-messages-container {
           position: absolute;
-          bottom: 80px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 600px;
-          max-width: 90vw;
-          height: 300px;
-          overflow-y: auto;
+          right: 24px;
+          bottom: 120px;
+          width: 400px;
+          max-width: 32vw;
+          max-height: 250px;
+          height: auto;
+          overflow-y: auto !important;
           display: flex;
           flex-direction: column;
           gap: 12px;
           padding: 20px;
-          pointer-events: none;
-          
-          /* Hide scrollbar */
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+          pointer-events: auto;
+          align-items: flex-end;
+          z-index: 1001;
         }
 
         .floating-messages-container::-webkit-scrollbar {
-          display: none;
+          display: block;
+          width: 8px;
         }
 
-        .floating-message {
-          display: flex;
-          justify-content: center;
-          animation: floatUp 0.6s ease-out;
-          transition: opacity 0.3s ease;
-          pointer-events: none;
+        .floating-messages-container::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.1);
+          border-radius: 4px;
         }
 
-        .floating-message.user {
-          justify-content: flex-end;
-        }
-
-        .floating-message.assistant {
-          justify-content: flex-start;
-        }
-
-        .floating-message.interim {
-          opacity: 0.7;
-        }
-
-        .floating-message.typing {
-          animation: pulse 2s infinite;
-        }
-
-        .floating-message.interrupted {
-          opacity: 0.6;
-          filter: grayscale(0.5);
-        }
-
-        .message-bubble {
-          background: rgba(64, 65, 79, 0.95);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          padding: 12px 16px;
-          max-width: 400px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-          position: relative;
+        .floating-messages-container::-webkit-scrollbar-thumb {
+          background: rgba(0,0,0,0.3);
+          border-radius: 4px;
         }
 
         .floating-message.user .message-bubble {
           background: rgba(16, 163, 127, 0.95);
-          border-color: rgba(16, 163, 127, 0.3);
+          color: #ffffff;
+          border: 1px solid rgba(16, 163, 127, 0.3);
+          border-radius: 12px;
+          padding: 12px 16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          max-width: 100%;
+          word-wrap: break-word;
+          white-space: pre-wrap;
+          line-height: 1.4;
+          align-self: flex-end;
+        }
+
+        .floating-message.user .message-text {
+          color: #ffffff !important;
+          font-size: 14px;
+          font-weight: 500;
+          margin: 0;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
 
         .floating-message.assistant .message-bubble {
-          background: rgba(68, 70, 84, 0.95);
-          border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .message-text {
-          color: #ececf1;
-          font-size: 14px;
-          line-height: 1.5;
+          background: rgba(255,255,255,0.95);
+          color: #000000;
+          border: 1px solid rgba(0,0,0,0.1);
+          border-radius: 12px;
+          padding: 12px 16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          max-width: 100%;
           word-wrap: break-word;
           white-space: pre-wrap;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.4;
+          align-self: flex-start;
         }
 
-        .typing-cursor {
-          animation: blink 1s infinite;
-          color: #10a37f;
+        .floating-message.assistant .message-text {
+          color: #000000 !important;
+          font-size: 14px;
+          font-weight: 500;
+          margin: 0;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
 
-        .typing-indicator {
-          animation: pulse 1.5s infinite;
-          color: #8e8ea0;
+        .floating-message.typing .message-bubble {
+          background: rgba(255,255,255,0.8);
+          color: #666;
+          border: 1px solid rgba(0,0,0,0.1);
+          border-radius: 12px;
+          padding: 12px 16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .floating-message.typing .message-text::after {
+          content: "...";
+          animation: dots 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 0.8; }
+          50% { opacity: 1; }
+        }
+
+        @keyframes dots {
+          0%, 20% { content: "..."; }
+          40% { content: ".."; }
+          60% { content: "."; }
+          80% { content: ""; }
         }
 
         .chat-input-container {
           position: absolute;
           bottom: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 500px;
-          max-width: 90vw;
-          padding: 20px;
+          right: 0;
+          left: auto;
+          width: 400px;
+          max-width: 40vw;
+          padding: 20px 20px 20px 0;
           pointer-events: auto;
+          display: flex;
+          justify-content: flex-end;
         }
 
         .input-wrapper {
-          background: rgba(64, 65, 79, 0.95);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 12px 16px;
-          display: flex;
-          align-items: flex-end;
-          gap: 8px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          width: 100%;
         }
 
-        .chat-input {
-          flex: 1;
-          background: transparent !important;
-          border: none !important;
-          color: white !important;
-          font-size: 14px;
-          resize: none;
-          outline: none;
-          box-shadow: none !important;
-        }
-
-        .chat-input::placeholder {
-          color: #8e8ea0;
-        }
-
-        .input-actions {
-          display: flex;
-          gap: 4px;
-          align-items: center;
-        }
-
-        .voice-mic-button {
-          margin-right: 4px;
-        }
-
-        .voice-chat-button.active {
-          background: #10a37f;
-          border-color: #10a37f;
-          color: white;
-        }
-
-        .voice-chat-button {
-          margin-right: 4px;
-        }
-
-        .send-button {
-          background: #10a37f;
-          border: none;
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s ease;
-        }
-
-        .send-button:hover {
-          background: #0d8f6f;
-        }
-
-        .send-button:disabled {
-          background: #565869;
-          color: #8e8ea0;
-        }
-
-        .interrupted-label {
-          color: #ff5252;
-          font-size: 12px;
-          margin-left: 6px;
-        }
-
-        .language-toggle-button {
-          font-weight: bold;
-          color: #10a37f;
-          border: 1px solid rgba(16, 163, 127, 0.3);
-          background: rgba(16, 163, 127, 0.1);
-          margin-right: 8px;
-          min-width: 50px;
-        }
-
-        .language-toggle-button:hover {
-          background: rgba(16, 163, 127, 0.2);
-          border-color: #10a37f;
-        }
-
-        .auto-detection-button {
-          font-size: 16px;
-          color: #8e8ea0;
-          border: 1px solid rgba(142, 142, 160, 0.3);
-          background: rgba(142, 142, 160, 0.1);
-          margin-right: 8px;
-          min-width: 40px;
-          transition: all 0.3s ease;
-        }
-
-        .auto-detection-button.active {
-          color: #10a37f;
-          border-color: #10a37f;
-          background: rgba(16, 163, 127, 0.1);
-        }
-
-        .auto-detection-button:hover {
-          background: rgba(16, 163, 127, 0.2);
-          border-color: #10a37f;
-        }
-
-        @keyframes floatUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-
-        @keyframes blink {
-          0%, 50% {
-            opacity: 1;
-          }
-          51%, 100% {
-            opacity: 0;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .floating-messages-container {
+        @media (max-width: 900px) {
+          .floating-messages-container, .chat-input-container {
+            max-width: 95vw;
             width: 95vw;
+            left: 0;
+            right: 0;
+            padding: 10px;
           }
-          
-          .chat-input-container {
-            width: 95vw;
-            padding: 15px;
-          }
-          
-          .message-bubble {
-            max-width: 280px;
-          }
-
-          .tts-notification {
-            right: 10px;
-            left: 10px;
-            max-width: none;
-          }
-        }
-
-        .typing-indicator-row .message-bubble {
-          background: rgba(68, 70, 84, 0.7);
-          color: #8e8ea0;
-        }
-        .typing-indicator {
-          animation: blink 1s infinite;
-          color: #8e8ea0;
-          font-size: 22px;
-          font-weight: bold;
         }
       `}</style>
     </div>
   );
 };
+
+function getCategoryEmoji(categoryName: string): string {
+  const emojiMap: Record<string, string> = {
+    'dance': '💃',
+    'exercise': '💪',
+    'fighting': '🥋',
+    'social': '👋',
+    'teaching': '📚',
+    'emotional': '😊',
+    'communication': '💬'
+  };
+  return emojiMap[categoryName] || '🎭';
+}

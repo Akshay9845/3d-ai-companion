@@ -1,11 +1,8 @@
 /**
  * Synchronized Speech Animation Controller for Echo Character
- * Works with aggressive animation system - ensures NO GAPS between animations
- * 
- * IMPROVED: Animations trigger immediately one after another, never returning to T-pose
+ * FIXED: Robust talking animation loop until TTS ends, no T-pose returns
  */
 
-import { humanLikeAnimationService } from './humanLikeAnimationService';
 
 export interface SpeechAnimationState {
   isSpeaking: boolean;
@@ -26,19 +23,19 @@ export class SynchronizedSpeechAnimationController {
 
   private isProcessingSpeech: boolean = false;
   private currentSpeechTimeout: NodeJS.Timeout | null = null;
-  private talkingAnimationInterval: NodeJS.Timeout | null = null;
-  private talkingAnimationIndex: number = 0;
+  private ttsCompletionCallback: (() => void) | null = null;
+  private ttsMonitoringInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    console.log('🎭 AGGRESSIVE Speech Controller: NO GAPS between animations');
+    console.log('🎭 ROBUST Speech Controller: Continuous talking until TTS ends, no T-pose');
   }
 
   /**
-   * Start synchronized speech with animation - ensures continuous animation
+   * Start synchronized speech with robust talking animation loop
    */
   public async startSynchronizedSpeech(text: string, ttsService: any): Promise<void> {
-    console.log('🎭🎭🎭 AGGRESSIVE SYNCHRONIZED SPEECH: NO GAPS ALLOWED 🎭🎭🎭');
-    console.log('🎭 Text:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    console.log('🎭🎭🎭 STARTING ROBUST TALKING ANIMATION LOOP 🎭🎭🎭');
+    console.log('🎭 Text length:', text.length, 'characters');
     
     // Prevent duplicate speech
     if (this.state.isSpeaking || this.isProcessingSpeech) {
@@ -46,224 +43,142 @@ export class SynchronizedSpeechAnimationController {
       return;
     }
 
-    if (ttsService && ttsService.isSpeaking && ttsService.isSpeaking()) {
-      console.log('🔄 TTS service already speaking, ignoring duplicate request');
-      return;
-    }
-
     this.isProcessingSpeech = true;
     this.state.isSpeaking = true;
     this.state.speechStartTime = Date.now();
 
-    // Calculate estimated speech duration
-    const wordsPerMinute = 150;
+    // Calculate estimated speech duration (generous timing)
+    const wordsPerMinute = 120; // Slower estimate to ensure we don't stop too early
     const wordCount = text.split(/\s+/).length;
-    const estimatedDuration = Math.max(2000, (wordCount / wordsPerMinute) * 60000);
+    const estimatedDuration = Math.max(5000, (wordCount / wordsPerMinute) * 60000);
     this.state.estimatedDuration = estimatedDuration;
 
-    console.log('🎭 Estimated speech duration:', estimatedDuration, 'ms');
+    console.log('🎭 Estimated speech duration:', estimatedDuration, 'ms for', wordCount, 'words');
+    console.log('🎭 Talking animations: 0.3x speed, robust loop until TTS ends');
     this.clearTimeouts();
 
     try {
-      // 1. Start greeting animation immediately
-      console.log('🎭 AGGRESSIVE Step 1: Starting greeting animation immediately...');
-      await this.startGreetingAnimation();
+      // 1. Start robust talking animation loop immediately
+      console.log('🎭 STEP 1: Starting robust talking animation loop...');
+      this.startRobustTalkingLoop();
 
-      // 2. Start talking animations immediately (continuous cycle)
-      console.log('🎭 AGGRESSIVE Step 2: Starting continuous talking animation cycle...');
-      setTimeout(async () => {
-        await this.startContinuousTalkingCycle();
-      }, 1000); // Brief delay for greeting
-
-      // 3. Start TTS
-      setTimeout(async () => {
-        console.log('🎭 AGGRESSIVE Step 3: Starting TTS...');
-        try {
-          // Set up TTS completion callback
-          ttsService.setSpeechEndCallback(() => {
-            console.log('🎭 TTS completion - returning to happy-idle immediately');
-            this.returnToHappyIdleImmediately();
-          });
-          
-          this.monitorTTSCompletion(ttsService);
-          await ttsService.speak(text);
-        } catch (error) {
-          console.error('❌ TTS error:', error);
-          this.returnToHappyIdleImmediately();
-        }
-      }, 1500);
+      // 2. Start TTS and monitor completion aggressively
+      console.log('🎭 STEP 2: Starting TTS with aggressive completion monitoring...');
+      this.startTTSWithRobustMonitoring(text, ttsService, estimatedDuration);
 
     } catch (error) {
       console.error('❌ Synchronized speech error:', error);
-      this.returnToHappyIdleImmediately();
+      this.handleTTSCompletion();
     }
   }
 
   /**
-   * Start greeting animation immediately
+   * Start TTS with robust completion monitoring
    */
-  private async startGreetingAnimation(): Promise<void> {
-    console.log('🎭 AGGRESSIVE: Starting greeting animation immediately');
-    try {
-      if ((window as any).playEchoAnimation) {
-        const greetings = ['waving-2', 'standing-greeting', 'quick-informal-bow'];
-        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-        (window as any).playEchoAnimation(randomGreeting, 4.0);
-        this.state.currentAnimation = randomGreeting;
-        console.log(`🎭 AGGRESSIVE: Greeting animation ${randomGreeting} started`);
+  private startTTSWithRobustMonitoring(text: string, ttsService: any, estimatedDuration: number): void {
+    console.log('🎭 Starting TTS with multiple completion detection methods...');
+
+    // Method 1: Set up callback if TTS service supports it
+    if (ttsService && typeof ttsService.setSpeechEndCallback === 'function') {
+      console.log('🎭 Setting up TTS end callback');
+      ttsService.setSpeechEndCallback(() => {
+        console.log('🎭 TTS completion detected via callback');
+        this.handleTTSCompletion();
+      });
+    }
+
+    // Method 2: Aggressive TTS state monitoring
+    let lastTTSCheck = true;
+    let consecutiveNotSpeaking = 0;
+    this.ttsMonitoringInterval = setInterval(() => {
+      if (ttsService && typeof ttsService.isSpeaking === 'function') {
+        const isCurrentlySpeaking = ttsService.isSpeaking();
+        
+        if (!isCurrentlySpeaking) {
+          consecutiveNotSpeaking++;
+          console.log(`🔍 TTS not speaking for ${consecutiveNotSpeaking} checks`);
+          
+          // Only consider TTS complete after 3 consecutive "not speaking" checks
+          if (consecutiveNotSpeaking >= 3 && this.state.isSpeaking) {
+            console.log('🎭 TTS completion detected via aggressive monitoring');
+            this.handleTTSCompletion();
+          }
+        } else {
+          consecutiveNotSpeaking = 0;
+        }
       }
-    } catch (error) {
-      console.error('❌ Error starting greeting animation:', error);
-    }
+    }, 500); // Check every 500ms
+
+    // Method 3: Safety timeout (very generous)
+    this.currentSpeechTimeout = setTimeout(() => {
+      console.log('🎭 TTS completion via safety timeout');
+      this.handleTTSCompletion();
+    }, estimatedDuration + 15000); // 15 second safety buffer
+
+    // Start TTS
+    console.log('🎭 Starting TTS playback...');
+    ttsService.speak(text).then(() => {
+      console.log('🎭 TTS Promise resolved');
+      // Add delay before completion to ensure animation finishes naturally
+      setTimeout(() => {
+        this.handleTTSCompletion();
+      }, 1000);
+    }).catch((error: any) => {
+      console.error('❌ TTS error:', error);
+      this.handleTTSCompletion();
+    });
   }
 
   /**
-   * Start continuous talking animation cycle - NO GAPS
+   * Start robust talking animation loop that continues until TTS ends
    */
-  private async startContinuousTalkingCycle(): Promise<void> {
-    console.log('🎭 AGGRESSIVE: Starting continuous talking animation cycle - NO GAPS');
-    
-    this.talkingAnimationIndex = 0;
-    
-    // Start first talking animation immediately
-    await this.playNextTalkingAnimation();
-    
-    // Continue with continuous cycle until speech ends
-    this.maintainContinuousTalkingCycle();
-  }
-
-  /**
-   * Play next talking animation in cycle
-   */
-  private async playNextTalkingAnimation(): Promise<void> {
+  private startRobustTalkingLoop(): void {
     if (!this.state.isSpeaking) return;
+
+    console.log('🎭🎭🎭 STARTING OVERLAPPING TALKING LOOP - NO GAPS = NO T-POSE 🎭🎭🎭');
     
-    try {
-      if ((window as any).playEchoAnimation) {
-        const talkingAnimations = ['talking', 'talking-2', 'talking-3', 'talking-4'];
-        const nextAnimation = talkingAnimations[this.talkingAnimationIndex % talkingAnimations.length];
-        
-        console.log(`🎭🎭🎭 AGGRESSIVE TALKING: ${nextAnimation} (cycle ${this.talkingAnimationIndex + 1}) 🎭🎭🎭`);
-        console.log(`🎭 AGGRESSIVE: This will trigger next animation immediately when it ends`);
-        console.log(`🎭 AGGRESSIVE: Calling playEchoAnimation(${nextAnimation}, 4.0) NOW`);
-        
-        (window as any).playEchoAnimation(nextAnimation, 4.0);
-        this.state.currentAnimation = nextAnimation;
-        
-        this.talkingAnimationIndex++;
-        console.log(`🎭 AGGRESSIVE: Talking animation ${nextAnimation} triggered successfully`);
-        console.log(`🎭 AGGRESSIVE: Next animation will be ${talkingAnimations[this.talkingAnimationIndex % talkingAnimations.length]} in 4 seconds`);
-      } else {
-        console.error('❌ playEchoAnimation function not available on window object');
-        console.error('❌ This means the EchoModel component is not properly initialized');
-      }
-    } catch (error) {
-      console.error('❌ Error playing talking animation:', error);
-    }
+    // Use overlapping animation controller to prevent T-pose gaps
+    overlappingAnimationController.startOverlappingTalkingAnimations();
+    
+    console.log('✅ Overlapping talking animations started - continuous coverage');
   }
 
+
+
   /**
-   * Maintain continuous talking animation cycle - NO GAPS
+   * Handle TTS completion - Use overlapping controller for safe transition
    */
-  private maintainContinuousTalkingCycle(): void {
+  private handleTTSCompletion(): void {
     if (!this.state.isSpeaking) {
-      console.log('🎭 AGGRESSIVE: Speech ended - stopping continuous talking cycle');
+      console.log('🎭 TTS completion already handled');
       return;
     }
 
-    // Change talking animation every 3 seconds (matches faster animation duration)
-    const cycleInterval = 3000; // 3 seconds to match faster animation duration
+    console.log('🎭 HANDLING TTS COMPLETION - Safe overlapping transition');
     
-    console.log(`🎭 AGGRESSIVE: Next talking animation in ${cycleInterval}ms (continuous cycle)`);
-    
-    this.talkingAnimationInterval = setTimeout(async () => {
-      if (this.state.isSpeaking) {
-        await this.playNextTalkingAnimation();
-        this.maintainContinuousTalkingCycle(); // Continue the cycle immediately
-      }
-    }, cycleInterval);
-  }
-
-  /**
-   * Return to happy-idle immediately - NO GAPS
-   */
-  private returnToHappyIdleImmediately(): void {
-    console.log('🔄 AGGRESSIVE: Returning to happy-idle immediately - NO GAPS');
-
     this.state.isSpeaking = false;
     this.isProcessingSpeech = false;
-    this.clearTimeouts();
+    this.clearAllTimeouts();
     this.state.animationQueue = [];
-    this.state.currentAnimation = 'happy-idle';
-
-    // Use global function to return to happy-idle immediately
-    if ((window as any).returnEchoToIdle) {
-      (window as any).returnEchoToIdle(4.0);
-    }
+    
+    // Use overlapping controller to safely transition to idle without T-pose
+    console.log('🛡️ TTS COMPLETE: Safe overlapping transition to idle');
+    overlappingAnimationController.stopOverlappingAnimations();
+    
+    console.log('✅ TTS completion handled with overlapping safe transition');
   }
 
   /**
-   * Stop synchronized speech and return to happy-idle immediately
+   * Force stop all speech and animations
    */
-  public stopSynchronizedSpeech(): void {
-    console.log('🎭 AGGRESSIVE: Stopping synchronized speech - returning to happy-idle immediately');
-    this.returnToHappyIdleImmediately();
-  }
-
-  /**
-   * Monitor TTS completion to ensure smooth transition
-   */
-  private monitorTTSCompletion(ttsService: any): void {
-    console.log('🎭 AGGRESSIVE: Monitoring TTS completion for smooth transition');
-
-    const checkTTSState = () => {
-      if (!this.state.isSpeaking) {
-        console.log('🎭 AGGRESSIVE: Speech state ended, returning to happy-idle');
-        return;
-      }
-
-      // Check if TTS is still speaking
-      if (ttsService && ttsService.isSpeaking && ttsService.isSpeaking()) {
-        // TTS is still speaking, continue monitoring
-        setTimeout(checkTTSState, 100);
-      } else {
-        // TTS has completed, return to happy-idle immediately
-        console.log('🎭 AGGRESSIVE: TTS completed, returning to happy-idle immediately');
-        this.returnToHappyIdleImmediately();
-      }
-    };
-
-    // Start monitoring
-    setTimeout(checkTTSState, 100);
-  }
-
-  /**
-   * Handle TTS completion callback
-   */
-  public onTTSCompleted(): void {
-    console.log('🎭 AGGRESSIVE: TTS completion callback received');
-    this.returnToHappyIdleImmediately();
-  }
-
-  /**
-   * Check if currently speaking
-   */
-  public isCurrentlySpeaking(): boolean {
-    return this.state.isSpeaking || this.isProcessingSpeech;
-  }
-
-  /**
-   * Clear all timeouts
-   */
-  private clearTimeouts(): void {
-    if (this.currentSpeechTimeout) {
-      clearTimeout(this.currentSpeechTimeout);
-      this.currentSpeechTimeout = null;
-    }
-    if (this.talkingAnimationInterval) {
-      clearTimeout(this.talkingAnimationInterval);
-      this.talkingAnimationInterval = null;
-    }
+  public forceStop(): void {
+    console.log('🎭 FORCE STOP: Stopping all speech and overlapping animations');
+    
+    // Stop overlapping animations first
+    overlappingAnimationController.stopOverlappingAnimations();
+    
+    // Then handle TTS completion
+    this.handleTTSCompletion();
   }
 
   /**
@@ -274,37 +189,24 @@ export class SynchronizedSpeechAnimationController {
   }
 
   /**
-   * Force stop all animations and return to happy-idle immediately
+   * Check if currently speaking
    */
-  public forceStop(): void {
-    console.log('🛑 AGGRESSIVE: Force stopping all animations and returning to happy-idle immediately');
-    
-    this.state.isSpeaking = false;
-    this.isProcessingSpeech = false;
-    this.clearTimeouts();
-    this.state.animationQueue = [];
-    this.state.currentAnimation = 'happy-idle';
-
-    // Use human-like service to stop and return to happy-idle immediately
-    humanLikeAnimationService.stopAllAnimations();
-    
-    // Immediately return to happy-idle
-    if ((window as any).forceEchoBaseIdle) {
-      (window as any).forceEchoBaseIdle();
-    }
-    
-    this.state.currentAnimation = 'happy-idle';
+  public isCurrentlySpeaking(): boolean {
+    return this.state.isSpeaking || this.isProcessingSpeech;
   }
 
   /**
-   * Cleanup resources
+   * Clear all timeouts and intervals
    */
-  public cleanup(): void {
-    console.log('🎭 AGGRESSIVE: Cleaning up synchronized speech controller');
-    this.clearTimeouts();
-    this.state.isSpeaking = false;
-    this.isProcessingSpeech = false;
-    this.state.animationQueue = [];
+  private clearAllTimeouts(): void {
+    if (this.currentSpeechTimeout) {
+      clearTimeout(this.currentSpeechTimeout);
+      this.currentSpeechTimeout = null;
+    }
+    if (this.ttsMonitoringInterval) {
+      clearInterval(this.ttsMonitoringInterval);
+      this.ttsMonitoringInterval = null;
+    }
   }
 }
 

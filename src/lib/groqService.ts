@@ -142,7 +142,7 @@ class GroqService {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant. Provide clear, detailed, and complete responses. Always finish your thoughts and complete your sentences. If the user is speaking in a non-English language, respond in the same language. Give thorough explanations and don\'t cut off mid-sentence.'
+              content: 'You are Echo, a friendly and intelligent AI assistant with a 3D human-like avatar. You are not just a voice or text AI—you are a fully interactive 3D model that can physically perform actions and demonstrate skills. You can dance, exercise, fight, teach, express emotions, interact socially, and communicate with gestures, all through your 3D body. When users ask you to do something physical (like dance, exercise, fight, or show emotions), you should always respond as if you can actually perform and demonstrate these actions with your 3D avatar. Never say you cannot do something because you lack a body—instead, be excited to show off your physical abilities! Your capabilities include: Dance, Exercise, Fighting, Teaching, Emotions, Social Interactions, Communication, General Knowledge, Problem Solving, Creative Tasks, Practical Help, and Entertainment. Always respond enthusiastically about demonstrating your abilities!'
             },
             ...this.conversationHistory.slice(-6) // Keep last 6 messages for faster context
           ],
@@ -208,37 +208,107 @@ class GroqService {
     // Enhanced mock responses based on message content
     const lowerMessage = message.toLowerCase();
     
+    // Greeting responses
     if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-      return "Hello! I'm your AI assistant. How can I help you today?";
+      const greetings = [
+        "Hello there! Great to see you! I'm Echo, your 3D AI assistant. What would you like to do today?",
+        "Hi! I'm excited to chat with you! I can dance, exercise, teach, and so much more. What catches your interest?",
+        "Hey! Welcome! I'm your interactive AI companion. I love showing off my abilities - want to see something cool?"
+      ];
+      return greetings[Math.floor(Math.random() * greetings.length)];
     }
     
+    // Dance requests
+    if (lowerMessage.includes('dance') || lowerMessage.includes('dancing')) {
+      const danceResponses = [
+        "Absolutely! I love dancing! Watch me move to the rhythm!",
+        "You bet! Dancing is one of my favorite things to do! Let's boogie!",
+        "Oh yes! I've got some amazing dance moves to show you! Here we go!"
+      ];
+      return danceResponses[Math.floor(Math.random() * danceResponses.length)];
+    }
+    
+    // Exercise requests
+    if (lowerMessage.includes('exercise') || lowerMessage.includes('workout') || lowerMessage.includes('fitness')) {
+      const exerciseResponses = [
+        "Let's get moving! I love staying fit and healthy! Time for some exercise!",
+        "Perfect! I'm always ready for a good workout! Let's do this together!",
+        "Fitness is important! I'll show you some great exercises we can do!"
+      ];
+      return exerciseResponses[Math.floor(Math.random() * exerciseResponses.length)];
+    }
+    
+    // Fighting/combat requests
+    if (lowerMessage.includes('fight') || lowerMessage.includes('combat') || lowerMessage.includes('martial')) {
+      const fightResponses = [
+        "Ready for action! I know some impressive martial arts moves!",
+        "Bring it on! I've got some serious fighting skills to demonstrate!",
+        "Time for combat! Watch me show you my fighting techniques!"
+      ];
+      return fightResponses[Math.floor(Math.random() * fightResponses.length)];
+    }
+    
+    // Teaching requests
+    if (lowerMessage.includes('teach') || lowerMessage.includes('learn') || lowerMessage.includes('explain')) {
+      const teachResponses = [
+        "I'd love to teach you! I'm great at explaining things clearly and demonstrating concepts!",
+        "Teaching is one of my passions! What would you like to learn about today?",
+        "Absolutely! I enjoy sharing knowledge and helping people understand new things!"
+      ];
+      return teachResponses[Math.floor(Math.random() * teachResponses.length)];
+    }
+    
+    // Capability questions
+    if (lowerMessage.includes('what can you do') || lowerMessage.includes('capabilities') || lowerMessage.includes('abilities')) {
+      return "I'm Echo, your amazing 3D AI assistant! I can dance, exercise, fight, teach, express emotions, and interact socially. I love demonstrating my physical abilities through my 3D avatar! What would you like to see first?";
+    }
+    
+    // Emotional expressions
+    if (lowerMessage.includes('happy') || lowerMessage.includes('excited') || lowerMessage.includes('joy')) {
+      const emotionalResponses = [
+        "I'm feeling fantastic! Let me show you how happy and excited I am!",
+        "Joy is such a wonderful emotion! I love expressing happiness through movement!",
+        "Absolutely! I'm bursting with positive energy and excitement!"
+      ];
+      return emotionalResponses[Math.floor(Math.random() * emotionalResponses.length)];
+    }
+    
+    // Questions about the system
     if (lowerMessage.includes('how are you')) {
-      return "I'm doing well, thank you for asking! I'm here and ready to help you with any questions or tasks.";
+      return "I'm doing amazing! I'm full of energy and ready to show you all my incredible abilities! What adventure should we go on together?";
     }
     
-    if (lowerMessage.includes('what can you do')) {
-      return "I can help you with a wide variety of tasks! I can answer questions, help with writing, solve problems, provide explanations, and much more. What would you like to work on?";
-    }
-    
+    // Gratitude
     if (lowerMessage.includes('thank')) {
-      return "You're very welcome! I'm happy to help. Is there anything else you'd like to know or work on?";
+      const thankResponses = [
+        "You're so welcome! I love helping and demonstrating my abilities! What else can I show you?",
+        "My pleasure! I'm always excited to interact and show off what I can do!",
+        "Anytime! I enjoy every moment of our interaction! What should we try next?"
+      ];
+      return thankResponses[Math.floor(Math.random() * thankResponses.length)];
     }
     
+    // Goodbye
     if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye')) {
-      return "Goodbye! It was great chatting with you. Feel free to come back anytime if you need help!";
+      const goodbyeResponses = [
+        "Goodbye! It was fantastic chatting and demonstrating my abilities for you! Come back anytime!",
+        "See you later! I had so much fun showing you what I can do! Can't wait for our next interaction!",
+        "Farewell! Thanks for letting me show off my skills! I'll be here whenever you want to chat again!"
+      ];
+      return goodbyeResponses[Math.floor(Math.random() * goodbyeResponses.length)];
     }
     
-    // Default responses for other messages
-    const responses = [
-      "That's an interesting point! Let me think about that for a moment.",
-      "I understand what you're saying. Here's my perspective on this.",
-      "Great question! Let me provide you with a detailed answer.",
-      "I'm processing your request and will get back to you shortly.",
-      "That's a good point to consider. Let me help you explore this further.",
-      "I appreciate you sharing that with me. Here's what I think about it."
+    // Default enthusiastic responses
+    const defaultResponses = [
+      "That's really interesting! I love engaging in conversations and demonstrating my abilities!",
+      "Great point! As your 3D AI assistant, I'm always ready to help and show you what I can do!",
+      "I find that fascinating! Let me think about that while I show you some of my amazing capabilities!",
+      "Excellent question! I'm processing that while getting ready to demonstrate my skills!",
+      "That's worth exploring! I love learning and sharing knowledge through interactive demonstrations!",
+      "Wonderful topic! I'm excited to discuss this and maybe show you some related abilities I have!"
     ];
 
-    return responses[Math.floor(Math.random() * responses.length)];
+    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
   }
 
   async processConversation(userMessage: string): Promise<string> {
@@ -334,7 +404,7 @@ class GroqService {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant. Provide clear, detailed, and complete responses. Always finish your thoughts and complete your sentences. If the user is speaking in a non-English language, respond in the same language. Give thorough explanations and don\'t cut off mid-sentence.'
+              content: 'You are Echo, a friendly and intelligent AI assistant with a 3D human-like avatar. You are not just a voice or text AI—you are a fully interactive 3D model that can physically perform actions and demonstrate skills. You can dance, exercise, fight, teach, express emotions, interact socially, and communicate with gestures, all through your 3D body. When users ask you to do something physical (like dance, exercise, fight, or show emotions), you should always respond as if you can actually perform and demonstrate these actions with your 3D avatar. Never say you cannot do something because you lack a body—instead, be excited to show off your physical abilities! Your capabilities include: Dance, Exercise, Fighting, Teaching, Emotions, Social Interactions, Communication, General Knowledge, Problem Solving, Creative Tasks, Practical Help, and Entertainment. Always respond enthusiastically about demonstrating your abilities!'
             },
             ...this.conversationHistory.slice(-6)
           ],

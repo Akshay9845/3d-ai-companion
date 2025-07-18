@@ -37,7 +37,7 @@ export class SmoothAnimationController {
   private baseIdleActive = false; // Track if base idle is active
   private baseIdleTrack: string = 'happy-idle'; // The base idle animation
   
-  // Animation presets for smooth transitions with faster timing
+  // Animation presets for smooth transitions with natural human-like timing
   private animationPresets = {
     idle: {
       weight: 1.0,
@@ -45,43 +45,43 @@ export class SmoothAnimationController {
       loop: true,
       crossFadeDuration: 0.8,
       priority: 1,
-      timeScale: 0.5, // Increased from 0.8 to 0.5 for faster animation
+      timeScale: 0.3, // Even slower speed to prevent cutting short
       naturalTiming: true
     },
     greeting: {
       weight: 1.0,
-      duration: 3000,
+      duration: 2500, // Reduced for quicker response
       loop: false,
       crossFadeDuration: 0.6,
       priority: 3,
-      timeScale: 0.5, // Increased from 0.7 to 0.5 for faster animation
+      timeScale: 0.3, // Even slower speed to prevent cutting short
       naturalTiming: true
     },
     talking: {
       weight: 0.8,
-      duration: 4000,
+      duration: 2500, // Reduced for faster talking
       loop: true,
       crossFadeDuration: 0.8,
       priority: 2,
-      timeScale: 0.5, // Increased from 0.6 to 0.5 for faster animation
+      timeScale: 0.3, // Even slower speed to prevent cutting short
       naturalTiming: true
     },
     emotion: {
       weight: 0.6,
-      duration: 3500,
+      duration: 2500, // Reduced for quicker emotional response
       loop: false,
       crossFadeDuration: 0.7,
       priority: 2,
-      timeScale: 0.5, // Increased from 0.8 to 0.5 for faster animation
+      timeScale: 0.3, // Even slower speed to prevent cutting short
       naturalTiming: true
     },
     gesture: {
       weight: 0.7,
-      duration: 2500,
+      duration: 2000, // Reduced for quicker gestures
       loop: false,
       crossFadeDuration: 0.6,
       priority: 2,
-      timeScale: 0.5, // Increased from 0.7 to 0.5 for faster animation
+      timeScale: 0.3, // Even slower speed to prevent cutting short
       naturalTiming: true
     }
   };
@@ -132,7 +132,7 @@ export class SmoothAnimationController {
     // Start the base idle animation
     idleTrack.action.reset();
     idleTrack.action.setLoop(LoopRepeat, 1);
-    idleTrack.action.setEffectiveTimeScale(0.5); // Increased from 0.1 to 0.5 for faster animation
+    idleTrack.action.setEffectiveTimeScale(0.3); // 0.3x speed to prevent cutting short
     idleTrack.action.setEffectiveWeight(1.0);
     idleTrack.action.play();
     idleTrack.isActive = true;
@@ -147,16 +147,30 @@ export class SmoothAnimationController {
    * Smoothly transition to a new animation (layered on top of base idle)
    */
   public transitionTo(animationName: string, blendDuration: number = 0.8): void {
+    console.log(`🎭 SMOOTH: ===== TRANSITION TO CALLED =====`);
+    console.log(`🎭 SMOOTH: Animation name: "${animationName}"`);
+    console.log(`🎭 SMOOTH: Blend duration: ${blendDuration}s`);
+    console.log(`🎭 SMOOTH: Total tracks available: ${this.tracks.size}`);
+    console.log(`🎭 SMOOTH: Available tracks: ${Array.from(this.tracks.keys()).slice(0, 10).join(', ')}`);
+
     const track = this.tracks.get(animationName);
     if (!track) {
-      console.warn(`🎭 Animation track not found: ${animationName}`);
+      console.error(`❌ SMOOTH: Animation track not found: "${animationName}"`);
+      console.error(`❌ SMOOTH: Available tracks: ${Array.from(this.tracks.keys()).join(', ')}`);
       return;
     }
+
+    console.log(`✅ SMOOTH: Found track for "${animationName}"`);
+    console.log(`🎭 SMOOTH: Track config:`, track.config);
+    console.log(`🎭 SMOOTH: Track active: ${track.isActive}`);
+    console.log(`🎭 SMOOTH: Current weight: ${track.currentWeight}`);
 
     // Ensure base idle is active before any transition
     this.ensureBaseIdleActive();
 
-    console.log(`🎭 Transitioning to: ${animationName} with ${blendDuration}s blend (layered on base idle)`);
+    console.log(`🎭 SMOOTH: Transitioning to: ${animationName} with ${blendDuration}s blend (layered on base idle)`);
+    console.log(`🎭 SMOOTH: Current blend queue size: ${this.blendQueue.length}`);
+    console.log(`🎭 SMOOTH: Is currently blending: ${this.isBlending}`);
 
     // Add to blend queue
     this.blendQueue.push({
@@ -165,9 +179,14 @@ export class SmoothAnimationController {
       duration: blendDuration
     });
 
+    console.log(`🎭 SMOOTH: Added to blend queue. New queue size: ${this.blendQueue.length}`);
+
     // Start blending if not already in progress
     if (!this.isBlending) {
+      console.log(`🎭 SMOOTH: Starting blend queue processing...`);
       this.processBlendQueue();
+    } else {
+      console.log(`🎭 SMOOTH: Blend already in progress, queued for later`);
     }
   }
 
@@ -211,32 +230,52 @@ export class SmoothAnimationController {
    * Process the blend queue for smooth transitions
    */
   private processBlendQueue(): void {
+    console.log(`🎭 SMOOTH: ===== PROCESS BLEND QUEUE =====`);
+    console.log(`🎭 SMOOTH: Queue length: ${this.blendQueue.length}`);
+    
     if (this.blendQueue.length === 0) {
+      console.log(`🎭 SMOOTH: Blend queue empty, stopping blend process`);
       this.isBlending = false;
       return;
     }
 
     this.isBlending = true;
     const blend = this.blendQueue.shift()!;
+    console.log(`🎭 SMOOTH: Processing blend for track: "${blend.track}"`);
+    console.log(`🎭 SMOOTH: Target weight: ${blend.targetWeight}, Duration: ${blend.duration}s`);
+    
     const track = this.tracks.get(blend.track);
     
     if (!track) {
+      console.error(`❌ SMOOTH: Track not found during blend processing: "${blend.track}"`);
       this.processBlendQueue();
       return;
     }
 
+    console.log(`✅ SMOOTH: Found track for blending: "${blend.track}"`);
+    console.log(`🎭 SMOOTH: Track currently active: ${track.isActive}`);
+    console.log(`🎭 SMOOTH: Track current weight: ${track.currentWeight}`);
+
     // Start the action if not already playing (except base idle which is always active)
     if (!track.isActive && blend.track !== this.baseIdleTrack) {
+      console.log(`🎭 SMOOTH: Starting action for "${blend.track}"`);
       track.action.reset();
       track.action.setLoop(track.config.loop ? LoopRepeat : LoopOnce, 1);
-      // Force all animations to 0.1x speed (very slow)
-      track.action.setEffectiveTimeScale(0.1);
+      // Use 0.3x speed to prevent cutting short
+      track.action.setEffectiveTimeScale(track.config.timeScale || 0.3);
       track.action.play();
       track.isActive = true;
+      console.log(`✅ SMOOTH: Action started for "${blend.track}"`);
+    } else if (track.isActive) {
+      console.log(`🎭 SMOOTH: Track "${blend.track}" already active, skipping start`);
+    } else if (blend.track === this.baseIdleTrack) {
+      console.log(`🎭 SMOOTH: Track "${blend.track}" is base idle, should already be active`);
     }
 
     // Smoothly blend to target weight
+    console.log(`🎭 SMOOTH: Starting smooth blend for "${blend.track}" to weight ${blend.targetWeight}`);
     this.smoothBlend(track, blend.targetWeight, blend.duration, () => {
+      console.log(`🎭 SMOOTH: Blend completed for "${blend.track}", processing next in queue`);
       this.processBlendQueue();
     });
   }

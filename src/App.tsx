@@ -1,19 +1,33 @@
 import { SettingOutlined } from '@ant-design/icons';
 import { Environment, OrbitControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
-import { Button } from 'antd';
+import { Button, Drawer } from 'antd';
 import { Suspense, useEffect, useState } from 'react';
 import { Route, BrowserRouter as Router, Routes, useNavigate } from 'react-router-dom';
 import './App.css';
 import { echoRobotCharacter } from './characters';
+import AnimationDemo from './components/AnimationDemo';
+import AnimationTestPanel from './components/AnimationTestPanel';
 import { AvatarChatOverlay } from './components/AvatarChatOverlay';
+import CameraStatus from './components/CameraStatus';
+import CapabilityTestComponent from './components/CapabilityTestComponent';
+import EchoAssistantDemo from './components/EchoAssistantDemo';
 import { EchoModel } from './components/EchoModel';
 import ErrorBoundary from './components/ErrorBoundary';
+import FlowValidationTest from './components/FlowValidationTest';
+import GoogleTTSTest from './components/GoogleTTSTest';
+import GoogleTTSTestSimple from './components/GoogleTTSTestSimple';
 import ModelDemoPage from './components/ModelDemoPage';
+import { ModelStateMonitor } from './components/ModelStateMonitor';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import SettingsDrawer from './components/SettingsDrawer';
-import { SimpleBrowserTTSService } from './lib/geminiTTSService';
-import { synchronizedSpeechAnimationController } from './lib/synchronizedSpeechAnimationController';
+import SimpleCameraToggle from './components/SimpleCameraToggle';
+import SpeechIntegrationHelper from './components/SpeechIntegrationHelper';
+import TTSFallbackTest from './components/TTSFallbackTest';
+import VisionDebugTest from './components/VisionDebugTest';
+import VisionDiagnostics from './components/VisionDiagnostics';
+import VoiceDrivenConversationSystem from './components/VoiceDrivenConversationSystem';
+import { enhancedGoogleTTSService } from './lib/enhancedGoogleTTSService';
 
 // Add a soft ground plane with shadow
 function StudioGround() {
@@ -37,25 +51,31 @@ function FallbackBox() {
 
 function MainApp() {
   const [showSettings, setShowSettings] = useState(false);
+  const [showModelMonitor, setShowModelMonitor] = useState(false);
+  const [showAnimationTest, setShowAnimationTest] = useState(false);
+  const [showVoiceConversation, setShowVoiceConversation] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
   const [avatarState, setAvatarState] = useState({
+    currentAnimation: 'idle',
     isSpeaking: false,
-    isListening: false,
-    emotion: 'neutral',
-    currentText: '',
+    emotion: 'neutral'
   });
 
-  // Initialize TTS service and synchronized speech controller
-  const [ttsService] = useState(() => new SimpleBrowserTTSService());
+  // Initialize Google TTS service and synchronized speech controller
+  const [ttsService] = useState(() => enhancedGoogleTTSService);
 
   // Initialize synchronized speech animation controller
   useEffect(() => {
-    console.log('🎭 AGGRESSIVE: Initializing synchronized speech animation controller');
+    console.log('🎭 AGGRESSIVE: Initializing synchronized speech animation controller with Google TTS');
     
-    // Initialize TTS service
-    ttsService.initialize().then(() => {
-      console.log('🎭 AGGRESSIVE: TTS service initialized');
+    // Initialize Google TTS service with environment API key
+    const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyB-6aBzVSQo9pWXDKBKyxA1towrHqdYN2g';
+    console.log('🔑 App.tsx using Google API Key:', googleApiKey.substring(0, 10) + '...');
+    ttsService.initialize(googleApiKey).then(() => {
+      console.log('🎭 AGGRESSIVE: Google TTS service initialized successfully');
     }).catch(error => {
-      console.error('❌ Failed to initialize TTS service:', error);
+      console.error('❌ Failed to initialize Google TTS service:', error);
+      console.log('🔄 Will fallback to browser TTS');
     });
   }, [ttsService]);
 
@@ -77,22 +97,14 @@ function MainApp() {
     }
   };
 
-  // Handle LLM response - trigger aggressive synchronized speech animation
+  // Handle LLM response - NO TTS HERE, just return the response
   const handleLLMResponse = async (response: string) => {
-    console.log('🎭🎭🎭 AGGRESSIVE: Processing LLM response for synchronized speech animation:', response);
-    console.log('🎭 AGGRESSIVE: This will trigger talking animations immediately one after another');
+    console.log('🎭 MAIN APP: LLM response received, delegating to AvatarChatOverlay for TTS and animation');
+    console.log('🎭 MAIN APP: Response:', response.substring(0, 100) + '...');
     
-    try {
-      // Use the aggressive synchronized speech animation controller
-      await synchronizedSpeechAnimationController.startSynchronizedSpeech(response, ttsService);
-      console.log('🎭 AGGRESSIVE: Synchronized speech animation started successfully');
-    } catch (error) {
-      console.error('❌ Error starting synchronized speech animation:', error);
-      // Emergency fallback to happy-idle
-      if ((window as any).returnEchoToIdle) {
-        (window as any).returnEchoToIdle(4.0);
-      }
-    }
+    // NO TTS or animation here - AvatarChatOverlay handles everything
+    // Just return the response so AvatarChatOverlay can process it
+    return response;
   };
 
   // Handle speaking state changes
@@ -175,13 +187,203 @@ function MainApp() {
           }}
         />
 
+        {/* Echo Assistant Demo Button - top left corner */}
+        <Button
+          type="text"
+          onClick={() => window.location.href = '/echo-assistant-demo'}
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            zIndex: 1002,
+            background: 'rgba(255,255,255,0.7)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            padding: '8px 16px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          🤖 Echo Demo
+        </Button>
+
+        {/* Google TTS Test Button - top left, below demo button */}
+        <Button
+          type="text"
+          onClick={async () => {
+            console.log('🎤 Testing Google TTS directly...');
+            try {
+              await ttsService.speak('Hello! This is a test of Google TTS with Indian male voice using the correct API key!', {
+                language: 'en-IN',
+                voice: 'en-IN-Neural2-B',
+                rate: 1.0,
+                pitch: 0.0,
+                volume: 0.0,
+                emotion: 'neutral'
+              });
+              console.log('✅ Google TTS test completed successfully!');
+            } catch (error) {
+              console.error('❌ Google TTS test failed:', error);
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: 20,
+            zIndex: 1002,
+            background: 'rgba(0,255,0,0.7)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            padding: '8px 16px',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}
+        >
+          🎤 Test Google TTS
+        </Button>
+
+        {/* Animation Test Button */}
+        <Button
+          type="text"
+          onClick={() => {
+            console.log('🎭 Testing animation directly...');
+            if ((window as any).playEchoAnimation) {
+              console.log('🎭 Triggering dance animation...');
+              (window as any).playEchoAnimation('excited', 0.8);
+            } else {
+              console.error('🎭 playEchoAnimation not available!');
+              console.log('🎭 Available window properties:', Object.keys(window).filter(k => k.includes('echo') || k.includes('Echo') || k.includes('animation')));
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: 120,
+            left: 20,
+            zIndex: 1002,
+            background: 'rgba(255,0,255,0.7)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            padding: '8px 16px',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}
+        >
+          🎭 Test Animation
+        </Button>
+
+        {/* Animation Test Panel Button */}
+        <Button
+          type="text"
+          onClick={() => setShowAnimationTest(true)}
+          style={{
+            position: 'absolute',
+            top: 160,
+            left: 20,
+            zIndex: 1002,
+            background: 'rgba(0,255,255,0.7)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            padding: '8px 16px',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}
+        >
+          🎭 Animation Panel
+        </Button>
+
+        {/* Voice Conversation Button */}
+        <Button
+          type="text"
+          onClick={() => setShowVoiceConversation(true)}
+          style={{
+            position: 'absolute',
+            top: 200,
+            left: 20,
+            zIndex: 1002,
+            background: 'rgba(255,165,0,0.9)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            padding: '8px 16px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: 'white',
+            border: '2px solid #ff6b35'
+          }}
+        >
+          🎤 Voice Chat
+        </Button>
+
         {/* Settings Drawer */}
         <SettingsDrawer 
           open={showSettings} 
           onClose={() => setShowSettings(false)} 
         />
         
+        {/* Animation Test Panel Drawer */}
+        <Drawer
+          title="🎭 Animation Test Panel"
+          placement="right"
+          size="large"
+          open={showAnimationTest}
+          onClose={() => setShowAnimationTest(false)}
+          styles={{ body: { padding: 0 } }}
+        >
+          <AnimationTestPanel />
+        </Drawer>
+
+        {/* Voice Conversation Drawer */}
+        <Drawer
+          title="🎤 Voice-Driven AI Assistant"
+          placement="left"
+          size="large"
+          open={showVoiceConversation}
+          onClose={() => setShowVoiceConversation(false)}
+          styles={{ body: { padding: 16 } }}
+        >
+          <VoiceDrivenConversationSystem />
+        </Drawer>
+        
         <PerformanceMonitor />
+        
+        {/* Model State Monitor */}
+        <ModelStateMonitor 
+          isVisible={showModelMonitor}
+          onToggleVisibility={() => setShowModelMonitor(!showModelMonitor)}
+        />
+
+        {/* Vision System Diagnostics - Top Right */}
+        <div className="fixed top-16 right-20 z-[1001] space-y-2">
+          <details className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg">
+            <summary className="p-3 cursor-pointer bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+              🔍 Vision Diagnostics
+            </summary>
+            <div className="w-[500px] max-h-[600px] overflow-auto">
+              <VisionDiagnostics />
+            </div>
+          </details>
+          
+          <details className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg">
+            <summary className="p-3 cursor-pointer bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors">
+              🔬 Debug Test
+            </summary>
+            <div className="w-[500px] max-h-[400px] overflow-auto">
+              <VisionDebugTest />
+            </div>
+          </details>
+        </div>
+
+        {/* Camera Status Indicator - Top Left */}
+        <CameraStatus 
+          isActive={cameraActive}
+          className="fixed top-16 left-20 z-[1001] bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3"
+        />
+
+        {/* Speech Integration Helper */}
+        <SpeechIntegrationHelper />
+        
+        {/* Simple Camera Toggle - Below Animation Panel */}
+        <SimpleCameraToggle onCameraStateChange={setCameraActive} />
+
       </div>
     </ErrorBoundary>
   );
@@ -218,6 +420,13 @@ function App() {
       <Routes>
         <Route path="/" element={<MainApp />} />
         <Route path="/model-demo" element={<ModelDemoWrapper />} />
+        <Route path="/capabilities" element={<CapabilityTestComponent />} />
+        <Route path="/animation-demo" element={<AnimationDemo />} />
+        <Route path="/google-tts-test" element={<GoogleTTSTest />} />
+        <Route path="/google-tts-simple" element={<GoogleTTSTestSimple />} />
+        <Route path="/tts-fallback-test" element={<TTSFallbackTest />} />
+        <Route path="/echo-assistant-demo" element={<EchoAssistantDemo />} />
+        <Route path="/flow-test" element={<FlowValidationTest />} />
       </Routes>
     </Router>
   );

@@ -2,7 +2,7 @@ import { CustomerServiceOutlined, SendOutlined } from '@ant-design/icons';
 import { Button, Input, Tooltip } from 'antd';
 import TextArea from 'antd/es/input/TextArea';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GeminiTTSService } from '../../lib/geminiTTSService';
+// TTS service removed - handled by parent AvatarChatOverlay
 import { groqService } from '../../lib/groqService';
 
 const { TextArea: AntTextArea } = Input;
@@ -25,11 +25,12 @@ interface ChatMessage {
 interface ModernChatInputSimpleProps {
   className?: string;
   onUserInput?: (input: string) => void;
-  onLLMResponse?: (response: string) => void;
+  onLLMResponse?: (response: string) => Promise<string>;
+  onVoiceInput?: (input: string) => void;
   isProcessing?: boolean;
 }
 
-const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className, onUserInput, onLLMResponse, isProcessing = false }) => {
+const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className, onUserInput, onLLMResponse, onVoiceInput, isProcessing = false }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [chatState, setChatState] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
@@ -42,7 +43,7 @@ const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className
   const currentRecognitionRef = useRef<SpeechRecognition | null>(null);
   const isStartingRecognitionRef = useRef(false);
   const recognitionErrorCount = useRef(0);
-  const [geminiTTS] = useState(() => new GeminiTTSService());
+  // TTS service removed - handled by parent component
   const vadStreamRef = useRef<any>(null);
   const isSpeakingRef = useRef(false);
 
@@ -55,13 +56,11 @@ const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className
     scrollToBottom();
   }, [messages]);
 
-  // Initialize services
+  // Initialize services (TTS removed - handled by parent)
   useEffect(() => {
     const initializeServices = async () => {
       try {
-        await geminiTTS.initialize();
-        
-        // Initialize Groq service
+        // Initialize Groq service only
         await groqService.initialize();
         
         // Refresh API key to pick up environment variables
@@ -79,7 +78,7 @@ const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className
           console.log('✅ Groq is connected with real API');
         }
         
-        console.log('✅ All services initialized');
+        console.log('✅ Services initialized (TTS handled by parent)');
       } catch (error) {
         console.error('❌ Service initialization error:', error);
         setGroqConnected(false);
@@ -88,7 +87,7 @@ const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className
     };
 
     initializeServices();
-  }, [geminiTTS]);
+  }, []);
 
   // Function to refresh Groq status
   const refreshGroqStatus = useCallback(() => {
@@ -334,51 +333,58 @@ const ModernChatInputSimple: React.FC<ModernChatInputSimpleProps> = ({ className
     // }
   };
 
-  // Handle voice messages (for voice chat mode)
+  // Handle voice messages (for voice chat mode) - now delegates to parent
   const handleSendVoiceMessage = useCallback(async (transcript: string) => {
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: transcript, sender: 'user', timestamp: new Date() }]);
-    
-    // Trigger user input callback for animation
-    onUserInput?.(transcript);
+    // FIXED: Don't add messages here - let parent handle it to prevent duplicates
+    // setMessages(prev => [...prev, { id: Date.now().toString(), text: transcript, sender: 'user', timestamp: new Date() }]);
     
     setChatState('processing');
+    
     try {
-      const aiResponse = await getAIResponse(transcript);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: aiResponse, sender: 'ai', timestamp: new Date() }]);
-      
-      // Trigger LLM response callback for animation
-      onLLMResponse?.(aiResponse);
-      
-      setChatState('speaking');
-      await speakResponse(aiResponse);
+      // ALWAYS delegate to parent component - do NOT generate our own response
+      if (onVoiceInput) {
+        onVoiceInput(transcript);
+      } else if (onLLMResponse) {
+        // Fallback to LLM response callback if no voice input handler
+        const response = await onLLMResponse(transcript);
+        // FIXED: Don't add response messages here - let parent handle it
+        // if (response) {
+        //   setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: response, sender: 'ai', timestamp: new Date() }]);
+        // }
+      }
     } catch (error) {
+      console.error('❌ Error during voice chat:', error);
       setVoiceError('Error during voice chat.');
     } finally {
       setChatState('idle');
     }
-  }, [getAIResponse, speakResponse, onUserInput, onLLMResponse]);
+  }, [onVoiceInput, onLLMResponse]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
     
     const userMessage = inputValue.trim();
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: userMessage, sender: 'user', timestamp: new Date() }]);
+    // FIXED: Don't add messages here - let parent handle it to prevent duplicates
+    // setMessages(prev => [...prev, { id: Date.now().toString(), text: userMessage, sender: 'user', timestamp: new Date() }]);
     
     // Trigger user input callback for animation
     onUserInput?.(userMessage);
     
     setInputValue('');
     setChatState('processing');
+    
     try {
-      const aiResponse = await getAIResponse(userMessage);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: aiResponse, sender: 'ai', timestamp: new Date() }]);
-      
-      // Trigger LLM response callback for animation
-      onLLMResponse?.(aiResponse);
-      
-      setChatState('speaking');
-    await speakResponse(aiResponse);
+      // ONLY delegate to parent - do NOT generate our own response
+      if (onLLMResponse) {
+        const response = await onLLMResponse(userMessage);
+        // FIXED: Don't add response messages here - let parent handle it
+        // Parent handles everything - just add the response to our local messages for UI
+        // if (response) {
+        //   setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: response, sender: 'ai', timestamp: new Date() }]);
+        // }
+      }
     } catch (error) {
+      console.error('❌ Error processing message:', error);
       setVoiceError('Error during chat.');
     } finally {
       setChatState('idle');
